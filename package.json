@@ -1,0 +1,16 @@
+{
+  "name": "lpo-docx-webhook",
+  "version": "1.0.0",
+  "description": "Converts LPO letter text to .docx for Make.com automation",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "docx": "^9.6.1",
+    "express": "^4.18.2"
+  }
+}
