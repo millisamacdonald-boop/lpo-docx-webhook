@@ -2,6 +2,7 @@ const express = require('express');
 const { Document, Packer, Paragraph, TextRun, AlignmentType, LevelFormat } = require('docx');
 
 const app = express();
+app.use(express.text({ limit: '2mb' }));
 app.use(express.json({ limit: '2mb' }));
 
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || 'changeme';
@@ -14,7 +15,8 @@ app.post('/generate-docx', async (req, res) => {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const { letterText, filename } = req.body;
+  const letterText = typeof req.body === 'string' ? req.body : req.body.letterText;
+  const filename = req.query.filename || 'LPO_Letter';
 
   if (!letterText || letterText.trim().length < 50) {
     return res.status(400).json({ error: 'letterText is required and must contain a complete letter' });
@@ -22,7 +24,7 @@ app.post('/generate-docx', async (req, res) => {
 
   try {
     const buffer = await buildDocx(letterText);
-    const safeFilename = (filename || 'LPO_Letter').replace(/[^a-zA-Z0-9_\- ]/g, '_');
+    const safeFilename = filename.replace(/[^a-zA-Z0-9_\- ]/g, '_');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
     res.setHeader('Content-Disposition', `attachment; filename="${safeFilename}.docx"`);
     res.setHeader('Content-Length', buffer.length);
@@ -80,7 +82,6 @@ function parseLetter(text) {
   let lineIndex = 0;
   let letterheadDone = false;
   let letterheadCount = 0;
-  let recipientDone = false;
   let inBody = false;
 
   while (lineIndex < lines.length) {
@@ -98,7 +99,6 @@ function parseLetter(text) {
     const isSignOff = /^Yours\s+(sincerely|faithfully)/i.test(line) || /^Kind regards/i.test(line);
     const isBullet = /^[-*]\s/.test(line);
 
-    // Letterhead (first lines before date)
     if (!letterheadDone && !isDate && letterheadCount < 7) {
       const isFirst = letterheadCount === 0;
       paragraphs.push(new Paragraph({
@@ -118,13 +118,11 @@ function parseLetter(text) {
       continue;
     }
 
-    // Recipient block (between date and subject)
     if (letterheadDone && !isSubject && !isSalutation && !inBody) {
       paragraphs.push(new Paragraph({
         children: [new TextRun({ text: line, size: 22, font: 'Arial' })],
         spacing: { after: 40 }
       }));
-      recipientDone = true;
       continue;
     }
 
@@ -171,7 +169,6 @@ function parseLetter(text) {
       continue;
     }
 
-    // Normal body paragraph
     paragraphs.push(new Paragraph({
       children: [new TextRun({ text: line, size: 22, font: 'Arial' })],
       spacing: { after: 160 }
